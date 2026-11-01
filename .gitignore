@@ -1,0 +1,30 @@
+node_modules/
+dist/
+.next/
+.turbo/
+build/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# Anchor / Rust
+target/
+test-ledger/
+.anchor/
+keys/*.json
+
+# Expo
+.expo/
+apps/mobile/ios/
+apps/mobile/android/
+
+# Prisma
+apps/api/src/generated/
+
+# Reference app (not part of the submission)
+reference/
+apps/api/dist-scripts/
+apps/api/storage/

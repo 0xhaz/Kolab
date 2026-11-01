@@ -1,0 +1,413 @@
+// Off-chain index + content store (architecture §7).
+// On-chain state is the source of truth for money and slot status; the indexer mirrors it here.
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  moduleFormat           = "esm"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  brand
+  creator
+  admin
+}
+
+enum CampaignType {
+  per_post
+  monthly
+  per_sale
+  ugc
+}
+
+enum CampaignStatus {
+  draft
+  active
+  cancelling
+  closed
+}
+
+enum EnrollmentStatus {
+  awaiting_shipment
+  in_transit
+  active
+  not_received
+  cancelled
+  completed
+}
+
+enum SlotKind {
+  post
+  ugc
+}
+
+enum CheckStatus {
+  pending
+  passed
+  failed
+}
+
+enum SlotStatus {
+  open
+  submitted
+  approved
+  rejected
+  released
+  holdback_released
+  missed
+  holdback_forfeited
+}
+
+model User {
+  id           String   @id @default(uuid())
+  privyId      String   @unique
+  /// null until the user picks brand or creator (set once)
+  role         Role?
+  displayName  String?
+  email        String?
+  walletPubkey String?  @unique
+  locale       String   @default("en")
+  /// Account deleted by the user: personal data removed, money records kept for counterparties
+  deletedAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  socialAccounts SocialAccount[]
+  creatorProfile CreatorProfile?
+  brandProfile   BrandProfile?
+  campaigns      Campaign[]
+  enrollments    Enrollment[]
+  samples        PortfolioItem[]
+  applications   Application[]
+}
+
+model SocialAccount {
+  id         String    @id @default(uuid())
+  userId     String
+  platform   String
+  handle     String
+  /// Self-declared until verifiedAt is set from platform insights
+  followers  Int       @default(0)
+  verifiedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platform])
+}
+
+model CreatorProfile {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  country          String?
+  bio              String   @default("")
+  niches           String[]
+  languages        String[]
+  formats          String[]
+  rateCardJson     Json?
+  usageRightsJson  Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model BrandProfile {
+  id               String  @id @default(uuid())
+  userId           String  @unique
+  businessName     String?
+  category         String?
+  shipsTo          String[]
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Campaign {
+  id                 String         @id @default(uuid())
+  /// campaign_id seed of the on-chain PDA ["campaign", brand wallet, onchainId]
+  onchainId          BigInt         @default(autoincrement())
+  onchainPubkey      String?        @unique
+  programId          String
+  mint               String
+  brandId            String
+  type               CampaignType
+  title              String
+  /// Shown on creator cards; copied from the brand at creation
+  brandName          String?
+  /// Product photo for the campaign card (https URL)
+  coverUrl           String?
+  /// First product photo of the brand kit; served publicly at /campaigns/:id/cover
+  coverUploadId      String?
+  /// Logo + at least one product photo + rights confirmed
+  kitReady           Boolean        @default(false)
+  kitColors          String[]
+  kitNotes           String?
+  kitAssetCount      Int            @default(0)
+  kitRightsAt        DateTime?
+  /// First time the indexer saw the campaign account on-chain (an unfunded escrow is still "draft")
+  onchainAt          DateTime?
+  /// Creators apply and the brand approves each one on-chain (approve_creator)
+  selective          Boolean        @default(true)
+  briefMd            String         @default("")
+  rulesJson          Json?
+  shipsTo            String[]
+  status             CampaignStatus @default(draft)
+  startAt            DateTime
+  endAt              DateTime
+  reviewWindowSecs   Int
+  graceSecs          Int
+  holdbackBps        Int
+  requiresShipping   Boolean        @default(false)
+  shippingWindowSecs Int            @default(0)
+  /// USDC base units
+  perSaleAmount      BigInt         @default(0)
+  maxCreators        Int
+  /// [{ kind: "post"|"ugc", amount: "<base units>", dueOffsetSecs }]
+  slotsJson          Json
+  /// Funding target the brand asked for (base units); the vault holds totalFunded.
+  budget             BigInt         @default(0)
+  totalFunded        BigInt         @default(0)
+  totalReleased      BigInt         @default(0)
+  totalRefunded      BigInt         @default(0)
+  totalFees          BigInt         @default(0)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  brand       User         @relation(fields: [brandId], references: [id])
+  enrollments  Enrollment[]
+  brandAssets  BrandAsset[]
+  applications Application[]
+  fundings     FundingIntent[]
+
+  @@unique([brandId, onchainId])
+}
+
+model Enrollment {
+  id                     String           @id @default(uuid())
+  onchainPubkey          String?          @unique
+  campaignId             String
+  creatorId              String
+  status                 EnrollmentStatus @default(awaiting_shipment)
+  voucherCode            String?          @unique
+  /// libsodium sealed box, never on-chain; purged 30d after campaign end
+  shippingAddressSealed  Bytes?
+  trackingRef            String?
+  shippedAt              DateTime?
+  receivedAt             DateTime?
+  salesAccrued           BigInt           @default(0)
+  earnedTotal            BigInt           @default(0)
+  createdAt              DateTime         @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  creator  User     @relation(fields: [creatorId], references: [id])
+  slots    Slot[]
+  sales    Sale[]
+
+  @@unique([campaignId, creatorId])
+}
+
+model Slot {
+  id            String     @id @default(uuid())
+  onchainPubkey String?    @unique
+  enrollmentId  String
+  periodIndex   Int        @default(0)
+  idx           Int
+  kind          SlotKind
+  dueAt         DateTime?
+  /// USDC base units (6 decimals)
+  amount        BigInt
+  dueOffsetSecs Int
+  status        SlotStatus @default(open)
+  checks        CheckStatus @default(pending)
+  contentHash   String?
+  submittedAt   DateTime?
+  decidedAt     DateTime?
+  holdback      BigInt     @default(0)
+  /// Released by the crank after the review window, not by the brand
+  autoReleased  Boolean    @default(false)
+  lastTx        String?
+
+  enrollment  Enrollment   @relation(fields: [enrollmentId], references: [id])
+  submissions Submission[]
+
+  @@unique([enrollmentId, periodIndex, idx])
+}
+
+model Submission {
+  id          String   @id @default(uuid())
+  slotId      String
+  url         String?
+  fileKey     String?
+  contentHash String
+  submittedAt DateTime @default(now())
+
+  slot         Slot          @relation(fields: [slotId], references: [id])
+  checkResults CheckResult[]
+}
+
+model CheckResult {
+  id           String  @id @default(uuid())
+  submissionId String
+  checkType    String
+  passed       Boolean
+  detailsJson  Json?
+  attestedTx   String?
+
+  submission Submission @relation(fields: [submissionId], references: [id])
+}
+
+model Sale {
+  id           String  @id @default(uuid())
+  enrollmentId String
+  orderRef     String  @unique
+  amount       BigInt
+  recordedTx   String?
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id])
+}
+
+enum ApplicationStatus {
+  pending
+  accepted
+  declined
+}
+
+/// A creator asking to join a selective campaign. Accepting = brand signs approve_creator.
+model Application {
+  id             String            @id @default(uuid())
+  campaignId     String
+  creatorId      String
+  pitch          String
+  status         ApplicationStatus @default(pending)
+  approvalPubkey String?
+  decidedAt      DateTime?
+  createdAt      DateTime          @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  creator  User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, creatorId])
+  @@index([campaignId, status])
+}
+
+/// A cross-chain top-up of a campaign escrow via Aurora Intents (or its devnet simulation).
+model FundingIntent {
+  id             String   @id @default(uuid())
+  campaignId     String
+  brandId        String
+  /// "simulated" | "aurora"
+  mode           String
+  sourceChain    String
+  sourceAsset    String
+  amountIn       String
+  amountInUsd    Float
+  /// USDC base units that land in escrow
+  amountOut      BigInt
+  appFeeBps      Int
+  estimatedSecs  Int
+  depositAddress String
+  depositMemo    String?
+  refundAddress  String?
+  /// Aurora Intents Connect execution id
+  executionId    String?
+  /// awaiting_deposit | deposit_detected | swapping | funding_escrow | completed | failed | refunded | expired
+  status         String   @default("awaiting_deposit")
+  escrowTx       String?
+  failureReason  String?
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([status])
+}
+
+/// USDC moved from a Kolab wallet on Solana to another chain/asset via the Aurora Swap API.
+model Cashout {
+  id                     String   @id @default(uuid())
+  userId                 String
+  /// "simulated" | "aurora"
+  mode                   String
+  destChain              String
+  destAsset              String
+  recipient              String
+  /// USDC base units leaving the wallet
+  amountIn               BigInt
+  amountOut              String
+  amountOutUsd           Float
+  appFeeBps              Int
+  estimatedSecs          Int
+  depositAddress         String
+  depositMemo            String?
+  /// awaiting_signature | deposit_sent | swapping | completed | refunded | failed | expired
+  status                 String   @default("awaiting_signature")
+  depositTx              String?
+  destinationTx          String?
+  destinationExplorerUrl String?
+  failureReason          String?
+  expiresAt              DateTime
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+/// A sample of a creator's work shown to brands: an uploaded photo/video or a public post link.
+model PortfolioItem {
+  id        String   @id @default(uuid())
+  userId    String
+  /// "image" | "video" | "link"
+  kind      String
+  uploadId  String?
+  url       String?
+  caption   String?
+  sort      Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Brand kit asset a seller provides for creators who joined the campaign.
+model BrandAsset {
+  id         String   @id @default(uuid())
+  campaignId String
+  uploadId   String
+  /// "logo" | "product"
+  kind       String
+  sort       Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+}
+
+/// A UGC file delivered by a creator. Its SHA-256 is what goes on-chain as the slot content hash.
+model Upload {
+  id         String   @id @default(uuid())
+  userId     String
+  sha256     String
+  size       Int
+  mime       String
+  /// "local" (dev) or "cloudinary" (authenticated asset)
+  storage    String
+  storageKey String
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([sha256])
+}
+
+/// Indexer cursor: every program tx we've applied, so replays are idempotent.
+model ProcessedSignature {
+  signature String   @id
+  slot      BigInt
+  createdAt DateTime @default(now())
+}

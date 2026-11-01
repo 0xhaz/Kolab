@@ -1,0 +1,3 @@
+{
+  "extends": "@kolab/config/tsconfig/library.json"
+}

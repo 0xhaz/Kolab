@@ -1,0 +1,4 @@
+{
+  "extends": "@kolab/config/tsconfig/library.json",
+  "exclude": ["${configDir}/src/**/*.test.ts"]
+}

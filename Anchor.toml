@@ -1,0 +1,23 @@
+skip_local_validator = true
+
+[toolchain]
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+kolab = "5JeZ2i6VAPZDpdnwu6GgpXjrXYhodQibSrh6QwmXTQxD"
+
+[programs.devnet]
+kolab = "5JeZ2i6VAPZDpdnwu6GgpXjrXYhodQibSrh6QwmXTQxD"
+# demo-clock build (local presentation): 7hTBC9iCNxZ3pmfk1EHstbB4hmxu2iRrNMZ4UhhChQfv
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "cargo test"
+
+[hooks]

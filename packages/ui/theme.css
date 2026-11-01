@@ -1,0 +1,133 @@
+/*
+ * Kolab theme for Tailwind v4 + shadcn. Ported from the makeUGCads reference:
+ * gray-950 base, violet primary, pink accent, glass panels. Dark is the default;
+ * add `data-theme="light"` (or remove `.dark`) on <html> for light.
+ */
+
+:root {
+  --radius: 1rem;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.16 0.02 280);
+  --card: oklch(0.985 0.003 265);
+  --card-foreground: oklch(0.16 0.02 280);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.16 0.02 280);
+  --primary: oklch(0.541 0.247 293);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.003 265);
+  --secondary-foreground: oklch(0.21 0.03 265);
+  --muted: oklch(0.967 0.003 265);
+  --muted-foreground: oklch(0.554 0.04 257);
+  --accent: oklch(0.592 0.218 0.6);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.577 0.245 27.3);
+  --border: oklch(0.21 0.04 265 / 10%);
+  --input: oklch(0.21 0.04 265 / 14%);
+  --ring: oklch(0.541 0.247 293 / 60%);
+  --chart-1: oklch(0.606 0.25 292.7);
+  --chart-2: oklch(0.656 0.241 354.3);
+  --chart-3: oklch(0.585 0.233 277.1);
+  --chart-4: oklch(0.723 0.219 149.6);
+  --chart-5: oklch(0.769 0.188 70.1);
+  --sidebar: oklch(0.985 0.003 265);
+  --sidebar-foreground: oklch(0.16 0.02 280);
+  --sidebar-primary: oklch(0.541 0.247 293);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.967 0.003 265);
+  --sidebar-accent-foreground: oklch(0.21 0.03 265);
+  --sidebar-border: oklch(0.21 0.04 265 / 10%);
+  --sidebar-ring: oklch(0.541 0.247 293 / 60%);
+}
+
+.dark {
+  /* Matches the mobile app (apps/mobile/src/lib/theme.ts) */
+  --background: oklch(0.105 0.008 285); /* #07070B */
+  --foreground: oklch(0.975 0.004 285); /* #F6F6FA */
+  --card: oklch(0.175 0.012 285); /* #111118 */
+  --card-foreground: oklch(0.975 0.004 285);
+  --popover: oklch(0.21 0.015 285); /* #1A1A24 */
+  --popover-foreground: oklch(0.975 0.004 285);
+  --primary: oklch(0.606 0.25 292.7); /* violet-500 */
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.21 0.015 285);
+  --secondary-foreground: oklch(0.975 0.004 285);
+  --muted: oklch(0.21 0.015 285);
+  --muted-foreground: oklch(0.7 0.025 285); /* #9C9CB0 */
+  --accent: oklch(0.656 0.241 354.3); /* pink-500 */
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.2);
+  --money: oklch(0.79 0.15 163); /* #34D399 */
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.606 0.25 292.7 / 60%);
+  --chart-1: oklch(0.606 0.25 292.7);
+  --chart-2: oklch(0.656 0.241 354.3);
+  --chart-3: oklch(0.585 0.233 277.1);
+  --chart-4: oklch(0.723 0.219 149.6);
+  --chart-5: oklch(0.769 0.188 70.1);
+  --sidebar: oklch(0.13 0.01 285 / 80%);
+  --sidebar-foreground: oklch(0.975 0.004 285);
+  --sidebar-primary: oklch(0.606 0.25 292.7);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(1 0 0 / 6%);
+  --sidebar-accent-foreground: oklch(0.975 0.004 285);
+  --sidebar-border: oklch(1 0 0 / 7%);
+  --sidebar-ring: oklch(0.606 0.25 292.7 / 60%);
+}
+
+/* Signature gradient, used sparingly: balance hero, primary CTA, avatar ring (same as mobile). */
+@utility bg-glow {
+  background-image: linear-gradient(135deg, #7c3aed 0%, #db2777 55%, #f59e0b 100%);
+}
+
+@utility text-glow {
+  background-image: linear-gradient(90deg, #a78bfa 0%, #f472b6 50%, #fbbf24 100%);
+  background-clip: text;
+  color: transparent;
+}
+
+@utility surface {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+}
+
+@utility surface-raised {
+  background-color: var(--popover);
+  border: 1px solid oklch(1 0 0 / 12%);
+}
+
+@utility glass-panel {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 0 0 oklch(1 0 0 / 4%) inset, 0 24px 48px -24px rgb(0 0 0 / 0.6);
+}
+
+@utility bg-brand-gradient {
+  background-image: linear-gradient(135deg, #7c3aed 0%, #db2777 55%, #f59e0b 100%);
+}
+
+@utility text-brand-gradient {
+  background-image: linear-gradient(90deg, #a78bfa 0%, #f472b6 50%, #fbbf24 100%);
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes marquee {
+  from { transform: translateX(0%); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@utility animate-marquee {
+  display: inline-flex;
+  animation: marquee 16s linear infinite;
+}
+
+@utility animate-float {
+  animation: float 5s ease-in-out infinite;
+}

@@ -1,0 +1,24 @@
+packages:
+  - apps/*
+  - packages/*
+
+allowBuilds:
+  sharp: true
+  unrs-resolver: true
+  "@prisma/engines": true
+  prisma: true
+  esbuild: true
+  "@nestjs/core": false
+  bufferutil: true
+  utf-8-validate: true
+  "@scarf/scarf": false
+  "@reown/appkit": false
+  keccak: false
+  "@google/genai": false
+  protobufjs: false
+
+# Keep pnpm's default 1-day minimumReleaseAge. pnpm may append a `minimumReleaseAgeExclude`
+# block here when an install wants a too-new version; delete it instead of committing it.
+
+patchedDependencies:
+  expo-modules-jsi@57.1.2: patches/expo-modules-jsi@57.1.2.patch

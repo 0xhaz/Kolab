@@ -1,0 +1,5 @@
+{
+  "extends": "@kolab/config/tsconfig/library.json",
+  "compilerOptions": { "types": ["node"], "rewriteRelativeImportExtensions": true, "allowImportingTsExtensions": true },
+  "exclude": ["${configDir}/src/**/*.test.ts"]
+}
