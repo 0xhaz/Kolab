@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FUNDING_SOURCES, FundingChainSchema, type FundingChain } from './funding.js';
+import { FUNDING_SOURCES, FundingChainSchema, type AuroraMode, type FundingChain } from './funding.js';
 
 /**
  * "Cash out to any chain" (Aurora Intents Swap API): a creator or brand moves USDC from their Kolab
@@ -52,7 +52,7 @@ export interface CashoutQuoteDto {
   amountOutUsd: number;
   appFeeBps: number;
   estimatedSecs: number;
-  mode: 'simulated' | 'aurora';
+  mode: AuroraMode;
 }
 
 export interface CashoutDto extends CashoutQuoteDto {
@@ -64,6 +64,8 @@ export interface CashoutDto extends CashoutQuoteDto {
   depositTx: string | null;
   destinationTx: string | null;
   destinationExplorerUrl: string | null;
+  /** Hybrid: the relay's real mainnet USDC transfer into Aurora. */
+  relayTx: string | null;
   failureReason: string | null;
   createdAt: string;
   updatedAt: string;

@@ -71,6 +71,11 @@ function Progress({ id, onDone }: { id: string; onDone: () => void }) {
           {o.status === 'refunded' ? 'The swap couldn’t complete; your USDC was refunded to your wallet.' : (o.failureReason ?? 'Cash-out did not complete.')}
         </p>
       )}
+      {o.relayTx && (
+        <a className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" href={`https://solscan.io/tx/${o.relayTx}`} target="_blank" rel="noreferrer">
+          Relay’s mainnet USDC into Aurora <ExternalLinkIcon className="size-3" />
+        </a>
+      )}
       {done && (
         <div className="flex gap-2">
           {o.destinationExplorerUrl && (
@@ -202,6 +207,11 @@ export function CashoutDialog({ open, onOpenChange, availableUsdc }: { open: boo
                   ≈ ${quote.amountOutUsd.toFixed(2)} · includes {quote.appFeeBps / 100}% fee · powered by Aurora Intents
                 </div>
                 {quote.mode === 'simulated' && <Chip label="Devnet: swap simulated, USDC transfer real" color={tone.warning} icon={FlaskConicalIcon} className="mt-2" />}
+                {quote.mode === 'hybrid' && (
+                  <p className="mt-2 text-xs text-emerald-200">
+                    Live Aurora payout: your devnet USDC goes in, and Kolab’s mainnet relay pays the same amount into a real Aurora swap to this address.
+                  </p>
+                )}
               </div>
             )}
             <Button variant="gradient" size="lg" className="h-11 w-full" disabled={!quote || !amountOk || !addressOk || !!stage} onClick={start}>

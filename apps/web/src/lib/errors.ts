@@ -13,6 +13,14 @@ const COPY: Record<string, string> = {
   account_not_deletable: 'Your account still has money or work in progress. Finish those first.',
   withdraw_to_self: 'That’s your own Kolab wallet address.',
   demo_only: 'Demo controls are switched off on this server.',
+  hybrid_not_allowed: 'Live cash-outs are limited to the Kolab team during the demo.',
+  hybrid_amount_cap: 'Live Aurora flows are capped for this demo. Try a smaller amount.',
+  hybrid_daily_cap: 'You’ve reached today’s live cash-out limit for this demo.',
+  relay_insufficient: 'Kolab’s mainnet relay wallet doesn’t hold enough USDC for this right now.',
+  refund_address_required: 'Add a refund address on the chain you’re paying from.',
+  invalid_refund_address: 'That refund address doesn’t look right for this chain.',
+  aurora_asset_unresolved: 'Aurora doesn’t support that asset right now. Pick another.',
+  aurora_error: 'Aurora couldn’t quote this route right now. Try another amount or asset.',
 };
 
 export function errorMessage(e: unknown): string {

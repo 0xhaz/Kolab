@@ -3,8 +3,10 @@ import { z } from 'zod';
 /**
  * Cross-chain campaign funding (Aurora Intents, powered by NEAR Intents): a brand pays with whatever
  * it holds on another chain and the money lands as USDC in the campaign escrow on Solana.
- * `simulated` mirrors the flow on devnet (Aurora only runs on mainnet); `aurora` calls the real API.
+ * `simulated` mirrors the flow on devnet (Aurora only runs on mainnet); `hybrid` runs the Aurora leg
+ * for real on mainnet into Kolab's relay wallet, which tops up the devnet escrow; `aurora` is all mainnet.
  */
+export type AuroraMode = 'simulated' | 'hybrid' | 'aurora';
 export const FUNDING_SOURCES = [
   { chain: 'tron', label: 'Tron', assets: ['USDT'], color: '#EF4444' },
   { chain: 'bsc', label: 'BNB Chain', assets: ['USDT', 'USDC', 'BNB'], color: '#F59E0B' },
@@ -58,7 +60,7 @@ export interface FundingQuoteDto {
   /** Kolab's integrator fee on the cross-chain flow (Aurora shares 60% of it with Kolab). */
   appFeeBps: number;
   estimatedSecs: number;
-  mode: 'simulated' | 'aurora';
+  mode: AuroraMode;
 }
 
 export interface FundingDto extends FundingQuoteDto {
@@ -70,6 +72,10 @@ export interface FundingDto extends FundingQuoteDto {
   refundAddress: string | null;
   /** Solana tx that moved the bridged USDC into the escrow vault. */
   escrowTx: string | null;
+  /** Aurora: explorer link for the brand's deposit on the source chain. */
+  originTxUrl: string | null;
+  /** Aurora: explorer link for the USDC delivered on Solana (to Kolab's relay in hybrid mode). */
+  bridgeTxUrl: string | null;
   failureReason: string | null;
   createdAt: string;
   updatedAt: string;

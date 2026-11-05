@@ -15,6 +15,12 @@ const COPY: Record<string, string> = {
   account_not_deletable: 'Your account still has money or work in progress. See what to finish first.',
   withdraw_to_self: 'That’s your own Kolab wallet address.',
   insufficient_usdc: 'Your wallet doesn’t hold that much USDC.',
+  hybrid_not_allowed: 'Live cash-outs are limited to the Kolab team during the demo.',
+  hybrid_amount_cap: 'Live Aurora cash-outs are capped for this demo. Try a smaller amount.',
+  hybrid_daily_cap: 'You’ve reached today’s live cash-out limit for this demo.',
+  relay_insufficient: 'Kolab’s mainnet relay doesn’t hold enough USDC for this right now.',
+  aurora_asset_unresolved: 'Aurora doesn’t support that asset right now. Pick another.',
+  aurora_error: 'Aurora couldn’t quote this route right now. Try another amount or asset.',
   account_not_found: 'This account no longer exists.',
   validation_failed: 'Please check the details and try again.',
 };

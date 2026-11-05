@@ -77,6 +77,7 @@ function Progress({ id }: { id: string }) {
           {o.status === 'refunded' ? 'The swap couldn’t complete, so your USDC was refunded to your Kolab wallet.' : o.status === 'expired' ? 'The quote expired. Start again.' : (o.failureReason ?? 'Cash-out failed.')}
         </Text>
       )}
+      {o.relayTx && <Button label="Relay’s mainnet transfer" variant="secondary" icon="arrow.up.right" onPress={() => void Linking.openURL(`https://solscan.io/tx/${o.relayTx}`)} />}
       {done && o.destinationExplorerUrl && <Button label="View on explorer" variant="secondary" icon="arrow.up.right" onPress={() => void Linking.openURL(o.destinationExplorerUrl!)} />}
       {done && <Button label="Done" icon="checkmark" onPress={() => router.back()} />}
     </Card>
@@ -223,6 +224,7 @@ function Cashout() {
                   ≈ ${quote.amountOutUsd.toFixed(2)} · {eta(quote.estimatedSecs)} · includes {quote.appFeeBps / 100}% fee · powered by Aurora Intents
                 </Text>
                 {quote.mode === 'simulated' && <Chip label="Devnet: swap is simulated, the USDC transfer is real" color={c.warning} icon="flask" />}
+                {quote.mode === 'hybrid' && <Chip label="Live Aurora payout on mainnet, paid by Kolab’s relay" color={c.money} icon="globe" />}
               </Card>
             )}
           </>

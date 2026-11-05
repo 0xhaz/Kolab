@@ -11,8 +11,8 @@ export class FundingController {
   constructor(private readonly funding: FundingService) {}
 
   @Get('funding/config')
-  config() {
-    return { ...this.funding.config(), sources: FUNDING_SOURCES };
+  async config() {
+    return { ...(await this.funding.config()), sources: FUNDING_SOURCES };
   }
 
   @Post('campaigns/:id/funding/quote')

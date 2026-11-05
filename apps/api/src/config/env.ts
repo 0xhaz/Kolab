@@ -60,19 +60,43 @@ const EnvSchema = z.object({
     .enum(['0', '1'])
     .default('0')
     .transform((v) => v === '1'),
-  /** Cross-chain funding: `simulated` on devnet (Aurora Intents is mainnet-only), `aurora` on mainnet. */
-  AURORA_MODE: z.enum(['simulated', 'aurora']).default('simulated'),
+  /**
+   * Cross-chain flows (Aurora Intents is mainnet-only):
+   * - `simulated`: devnet, deposit and swap simulated, escrow top-up real.
+   * - `hybrid`: the Aurora leg is real on mainnet (via Kolab's relay wallet), the escrow stays on devnet.
+   * - `aurora`: everything on mainnet, Intents Connect calls the program directly.
+   */
+  AURORA_MODE: z.enum(['simulated', 'hybrid', 'aurora']).default('simulated'),
   AURORA_API_KEY: z.string().optional(),
   AURORA_API_URL: z.url().default('https://intents-api.aurora.dev'),
   AURORA_CONNECT_URL: z.url().default('https://intents-connect-api.aurora.dev'),
   /** Kolab's integrator fee on cross-chain flows (Aurora pays 60% of it to the integrator). */
   AURORA_APP_FEE_BPS: z.coerce.number().int().min(0).max(500).default(50),
+  /** Hybrid mode: Kolab's mainnet relay wallet (keys/relay-mainnet.json). Receives bridged USDC, pays out cash-outs. */
+  RELAY_SECRET: keypairBytes.optional(),
+  MAINNET_RPC_URL: z.url().default('https://api.mainnet-beta.solana.com'),
+  MAINNET_USDC_MINT: z.string().min(32).max(44).default('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'),
+  /** Hybrid mode: largest single flow, and each user's 24h cash-out total, in USDC (protects the relay wallet). */
+  HYBRID_MAX_USDC: z.coerce.number().positive().default(10),
+  /**
+   * Hybrid mode: comma-separated emails allowed to cash out (real USDC leaves the relay for free
+   * devnet USDC). Empty = everyone; set it on any public deployment.
+   */
+  HYBRID_CASHOUT_ALLOWLIST: z
+    .string()
+    .default('')
+    .transform((s) => s.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean)),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  const parsed = EnvSchema.safeParse(source);
+  const parsed = EnvSchema.superRefine((e, ctx) => {
+    if (e.AURORA_MODE !== 'hybrid') return;
+    for (const k of ['AURORA_API_KEY', 'RELAY_SECRET', 'DEMO_ADMIN_SECRET'] as const) {
+      if (!e[k]) ctx.addIssue({ code: 'custom', path: [k], message: 'required when AURORA_MODE=hybrid' });
+    }
+  }).safeParse(source);
   if (!parsed.success) {
     throw new Error(`Invalid environment:\n${z.prettifyError(parsed.error)}`);
   }

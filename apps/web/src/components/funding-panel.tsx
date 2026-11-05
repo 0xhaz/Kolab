@@ -52,7 +52,7 @@ export function FundingPanel({ campaign }: { campaign: CampaignDto }) {
       </div>
       <p className="text-xs text-muted-foreground">
         Pay with USDT on Tron, ETH on Base, BTC and more. Aurora Intents swaps it to USDC and locks it in this escrow in one flow.
-        {config.data?.mode === 'simulated' ? ' Simulated on devnet.' : ''}
+        {config.data?.mode === 'simulated' ? ' Simulated on devnet.' : config.data?.mode === 'hybrid' ? ' Live Aurora swap on mainnet; this escrow is on devnet.' : ''}
       </p>
       {fundings.length > 0 && (
         <ul className="divide-y divide-white/6 rounded-2xl border border-white/6">

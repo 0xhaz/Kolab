@@ -28,3 +28,7 @@ apps/api/src/generated/
 reference/
 apps/api/dist-scripts/
 apps/api/storage/
+
+# Internal use only
+docs/
+.vercel

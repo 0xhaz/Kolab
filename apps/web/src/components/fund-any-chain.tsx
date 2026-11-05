@@ -18,7 +18,7 @@ import {
   RefreshCwIcon,
   XCircleIcon,
 } from 'lucide-react';
-import { FUNDING_SOURCES, type CampaignDto, type FundingChain, type FundingDto, type FundingQuoteDto, type FundingStatus } from '@kolab/shared';
+import { FUNDING_SOURCES, isValidAddress, type CampaignDto, type FundingChain, type FundingDto, type FundingQuoteDto, type FundingStatus } from '@kolab/shared';
 import { Chip, tone } from '@/components/dashboard';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -42,7 +42,13 @@ const ORDER = STEPS.map((s) => s.status);
 const eta = (secs: number) => (secs < 90 ? `~${secs}s` : `~${Math.round(secs / 60)} min`);
 const chainOf = (chain: FundingChain) => FUNDING_SOURCES.find((s) => s.chain === chain)!;
 
-function Timeline({ status }: { status: FundingStatus }) {
+/** Hybrid PoC: Aurora delivers to Kolab's mainnet relay, which credits the devnet escrow. */
+const HYBRID_SUB: Partial<Record<FundingStatus, string>> = {
+  swapping: 'Aurora swaps into USDC on Solana mainnet, delivered to Kolab’s relay',
+  funding_escrow: 'The relay credits the same USDC to this escrow on devnet',
+};
+
+function Timeline({ status, hybrid }: { status: FundingStatus; hybrid?: boolean }) {
   const failed = status === 'failed' || status === 'refunded' || status === 'expired';
   const at = failed ? -1 : ORDER.indexOf(status);
   return (
@@ -65,7 +71,7 @@ function Timeline({ status }: { status: FundingStatus }) {
             </div>
             <div className="pb-4">
               <div className={cn('text-sm font-semibold', !done && !now && 'text-muted-foreground')}>{s.label}</div>
-              <div className="text-xs text-muted-foreground">{s.sub}</div>
+              <div className="text-xs text-muted-foreground">{(hybrid && HYBRID_SUB[s.status]) || s.sub}</div>
             </div>
           </li>
         );
@@ -119,6 +125,7 @@ function DepositStage({ id, onDone }: { id: string; onDone: () => void }) {
         {f.mode === 'simulated' && (
           <Chip label="Devnet simulation" color={tone.warning} icon={FlaskConicalIcon} className="w-full justify-center" />
         )}
+        {f.mode === 'hybrid' && <Chip label="Live Aurora · mainnet" color={tone.money} icon={GlobeIcon} className="w-full justify-center" />}
       </div>
       <div className="min-w-0 space-y-4">
         <div>
@@ -145,7 +152,27 @@ function DepositStage({ id, onDone }: { id: string; onDone: () => void }) {
             Include memo <span className="font-mono font-semibold">{f.depositMemo}</span> or the deposit won’t settle.
           </p>
         )}
-        <Timeline status={f.status} />
+        {f.mode === 'hybrid' && f.status === 'awaiting_deposit' && (
+          <p className="rounded-xl border border-emerald-400/25 bg-emerald-400/8 px-3 py-2 text-xs text-emerald-200">
+            This is a real Aurora deposit address on {src.label} mainnet. Send real funds from your own wallet; Aurora refunds {f.refundAddress ?? 'your refund address'} if
+            the swap can’t complete.
+          </p>
+        )}
+        <Timeline status={f.status} hybrid={f.mode === 'hybrid'} />
+        {(f.originTxUrl || f.bridgeTxUrl) && (
+          <div className="flex flex-wrap gap-2">
+            {f.originTxUrl && (
+              <Button variant="glass" size="sm" nativeButton={false} render={<a href={f.originTxUrl} target="_blank" rel="noreferrer" />}>
+                Your {src.label} deposit <ExternalLinkIcon />
+              </Button>
+            )}
+            {f.bridgeTxUrl && (
+              <Button variant="glass" size="sm" nativeButton={false} render={<a href={f.bridgeTxUrl} target="_blank" rel="noreferrer" />}>
+                Aurora delivery on Solana <ExternalLinkIcon />
+              </Button>
+            )}
+          </div>
+        )}
         {failed && (
           <p className="flex items-start gap-2 rounded-xl border border-red-400/25 bg-red-400/8 px-3 py-2 text-sm text-red-300">
             <XCircleIcon className="mt-0.5 size-4 shrink-0" />
@@ -166,7 +193,7 @@ function DepositStage({ id, onDone }: { id: string; onDone: () => void }) {
             <>
               {f.escrowTx && (
                 <Button variant="glass" className="h-10 px-4" nativeButton={false} render={<a href={explorerTx(f.escrowTx)} target="_blank" rel="noreferrer" />}>
-                  Escrow tx <ExternalLinkIcon />
+                  {f.mode === 'hybrid' ? 'Escrow tx (devnet)' : 'Escrow tx'} <ExternalLinkIcon />
                 </Button>
               )}
               <Button variant="gradient" className="h-10 px-5" onClick={onDone}>
@@ -203,10 +230,17 @@ export function FundAnyChainDialog({
   const [quoting, setQuoting] = useState(false);
   const [fundingId, setFundingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const live = config.data?.mode === 'aurora';
+  const mode = config.data?.mode ?? 'simulated';
+  const live = mode !== 'simulated';
+  const hybrid = mode === 'hybrid';
+  const maxUsdc = config.data?.maxUsdc;
+  const overCap = hybrid && maxUsdc !== undefined && amount > maxUsdc;
+  // Live quotes need a refund address on the paying chain (Aurora refunds there).
+  const refundOk = !live || isValidAddress(chain, refund);
+  const shownQuote = refundOk && !overCap ? quote : null;
 
   useEffect(() => {
-    if (!open || fundingId || amount <= 0) return;
+    if (!open || fundingId || amount <= 0 || !refundOk || overCap) return;
     let cancelled = false;
     const t = setTimeout(() => {
       setQuoting(true);
@@ -222,7 +256,7 @@ export function FundAnyChainDialog({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [open, fundingId, amount, chain, asset, refund, campaign.id]);
+  }, [open, fundingId, amount, chain, asset, refund, campaign.id, refundOk, overCap]);
 
   async function start() {
     setBusy(true);
@@ -270,6 +304,9 @@ export function FundAnyChainDialog({
               <Label>Amount to lock in escrow (USDC)</Label>
               <Input type="number" min={1} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
               {remaining > 0 && <p className="text-xs text-muted-foreground">{usdc(remaining)} of the budget isn’t funded yet.</p>}
+              {hybrid && maxUsdc !== undefined && (
+                <p className={cn('text-xs', overCap ? 'text-red-300' : 'text-muted-foreground')}>Live Aurora demo: up to {usdc(maxUsdc)} per deposit, paid with real funds.</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -310,6 +347,7 @@ export function FundAnyChainDialog({
                 Refund address on {chainOf(chain).label} {live ? '' : <span className="text-muted-foreground">(optional on devnet)</span>}
               </Label>
               <Input value={refund} onChange={(e) => setRefund(e.target.value)} placeholder="Where Aurora returns funds if the swap can’t complete" className="font-mono text-xs" />
+              {live && refund.length > 6 && !refundOk && <p className="text-xs text-red-300">That doesn’t look like a {chainOf(chain).label} address.</p>}
             </div>
 
             <div className="rounded-2xl border border-white/8 bg-popover p-4">
@@ -317,16 +355,18 @@ export function FundAnyChainDialog({
                 <div>
                   <div className="text-xs text-muted-foreground">You send</div>
                   <div className="text-xl font-bold tabular-nums">
-                    {quote ? `${quote.amountIn} ${asset}` : '—'}
+                    {shownQuote ? `${shownQuote.amountIn} ${asset}` : '—'}
                     {quoting && <RefreshCwIcon className="ml-2 inline size-3.5 animate-spin text-muted-foreground" />}
                   </div>
-                  <div className="text-xs text-muted-foreground">{quote ? `≈ $${quote.amountInUsd.toFixed(2)} on ${chainOf(chain).label}` : 'Getting a quote…'}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {shownQuote ? `≈ $${shownQuote.amountInUsd.toFixed(2)} on ${chainOf(chain).label}` : !refundOk ? 'Add a refund address for a live quote' : 'Getting a quote…'}
+                  </div>
                 </div>
                 <ArrowDownIcon className="size-4 -rotate-90 text-muted-foreground" />
                 <div className="text-right">
                   <div className="text-xs text-muted-foreground">Lands in escrow</div>
                   <div className="text-xl font-bold tabular-nums text-money">{usdc(amount)}</div>
-                  <div className="text-xs text-muted-foreground">{quote ? eta(quote.estimatedSecs) : ''}</div>
+                  <div className="text-xs text-muted-foreground">{shownQuote ? eta(shownQuote.estimatedSecs) : ''}</div>
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-white/6 pt-3 text-xs text-muted-foreground">
@@ -338,6 +378,13 @@ export function FundAnyChainDialog({
               </div>
             </div>
 
+            {hybrid && (
+              <p className="flex items-start gap-2 text-xs text-muted-foreground">
+                <GlobeIcon className="mt-0.5 size-3.5 shrink-0 text-emerald-300" />
+                Live Aurora Intents swap on mainnet. The USDC is delivered to Kolab’s relay wallet on Solana mainnet, which credits this devnet escrow 1:1. In production
+                the relay goes away and Aurora calls the escrow program directly.
+              </p>
+            )}
             {!live && (
               <p className="flex items-start gap-2 text-xs text-muted-foreground">
                 <FlaskConicalIcon className="mt-0.5 size-3.5 shrink-0 text-amber-300" />
@@ -345,7 +392,7 @@ export function FundAnyChainDialog({
               </p>
             )}
 
-            <Button variant="gradient" size="lg" className="h-11 w-full" disabled={busy || !quote || amount <= 0 || (live && !refund)} onClick={start}>
+            <Button variant="gradient" size="lg" className="h-11 w-full" disabled={busy || !shownQuote || amount <= 0 || !refundOk || overCap} onClick={start}>
               {busy ? 'Creating deposit address…' : `Get ${chainOf(chain).label} deposit address`}
             </Button>
           </div>

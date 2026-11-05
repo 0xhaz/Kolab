@@ -297,7 +297,7 @@ model FundingIntent {
   id             String   @id @default(uuid())
   campaignId     String
   brandId        String
-  /// "simulated" | "aurora"
+  /// "simulated" | "hybrid" | "aurora"
   mode           String
   sourceChain    String
   sourceAsset    String
@@ -315,6 +315,10 @@ model FundingIntent {
   /// awaiting_deposit | deposit_detected | swapping | funding_escrow | completed | failed | refunded | expired
   status         String   @default("awaiting_deposit")
   escrowTx       String?
+  /// Aurora: the brand's deposit on the source chain (explorer link)
+  originTxUrl    String?
+  /// Aurora: USDC delivered on Solana (to the relay in hybrid mode)
+  bridgeTxUrl    String?
   failureReason  String?
   expiresAt      DateTime
   createdAt      DateTime @default(now())
@@ -330,7 +334,7 @@ model FundingIntent {
 model Cashout {
   id                     String   @id @default(uuid())
   userId                 String
-  /// "simulated" | "aurora"
+  /// "simulated" | "hybrid" | "aurora"
   mode                   String
   destChain              String
   destAsset              String
@@ -348,6 +352,10 @@ model Cashout {
   depositTx              String?
   destinationTx          String?
   destinationExplorerUrl String?
+  /// Hybrid: Aurora deposit address the mainnet relay paid into, and that mainnet transfer
+  bridgeDepositAddress   String?
+  bridgeDepositMemo      String?
+  relayTx                String?
   failureReason          String?
   expiresAt              DateTime
   createdAt              DateTime @default(now())

@@ -37,17 +37,53 @@ export interface AuroraExecution {
 }
 
 export interface SwapQuote {
-  depositAddress: string;
+  /** Absent on dry quotes. */
+  depositAddress?: string;
   depositMemo?: string;
   amountIn: string;
+  amountInFormatted: string;
+  amountInUsd: string;
+  minAmountIn?: string;
   amountOut: string;
   amountOutFormatted: string;
   amountOutUsd: string;
-  deadline: string;
+  minAmountOut?: string;
+  deadline?: string;
   timeEstimate: number;
 }
 
+export interface SwapTx {
+  hash: string;
+  explorerUrl: string;
+}
+
+export interface SwapStatusResponse {
+  status: SwapStatus;
+  updatedAt?: string;
+  swapDetails?: {
+    amountOut?: string;
+    originChainTxHashes?: SwapTx[];
+    destinationChainTxHashes?: SwapTx[];
+    refundedAmountFormatted?: string;
+    refundReason?: string;
+  };
+}
+
 export type SwapStatus = 'KNOWN_DEPOSIT_TX' | 'PENDING_DEPOSIT' | 'INCOMPLETE_DEPOSIT' | 'PROCESSING' | 'SUCCESS' | 'REFUNDED' | 'FAILED';
+
+/** Aurora lists a few native assets under another symbol (native TON is GRAM, NEAR is wNEAR). */
+const SYMBOL_ALIAS: Record<string, string> = { 'ton:TON': 'GRAM', 'near:NEAR': 'wNEAR' };
+
+/** Swap API status → the funding timeline (hybrid mode; SUCCESS hands over to the relay's escrow top-up). */
+export const SWAP_FUNDING_STATUS: Record<SwapStatus, FundingStatus> = {
+  PENDING_DEPOSIT: 'awaiting_deposit',
+  KNOWN_DEPOSIT_TX: 'deposit_detected',
+  INCOMPLETE_DEPOSIT: 'deposit_detected',
+  PROCESSING: 'swapping',
+  SUCCESS: 'funding_escrow',
+  REFUNDED: 'refunded',
+  FAILED: 'failed',
+};
 
 /** Swap API status → the cash-out timeline (once the user's USDC transfer is on-chain). */
 export const SWAP_STATUS: Record<SwapStatus, CashoutStatus> = {
@@ -123,8 +159,8 @@ export function simulatedQuote(chain: FundingChain, asset: string, amountOutUsdc
 }
 
 /**
- * Thin client for Aurora Intents (NEAR Intents underneath). Mainnet only, so it is exercised once
- * Kolab is deployed to mainnet; on devnet the funding service uses the simulation above instead.
+ * Thin client for Aurora Intents (NEAR Intents underneath). Aurora is mainnet-only: `hybrid` mode
+ * uses the Swap API for real with Kolab's relay wallet, `simulated` uses the helpers above.
  */
 @Injectable()
 export class AuroraClient {
@@ -152,16 +188,18 @@ export class AuroraClient {
     return body;
   }
 
-  /** Supported tokens, cached for 5 minutes. */
+  /** Supported tokens, cached for 5 minutes. The API returns `{ tokens, asset_stats }`. */
   async listTokens(): Promise<AuroraToken[]> {
     if (this.tokens && Date.now() - this.tokens.at < 300_000) return this.tokens.list;
-    const list = await this.call<AuroraToken[]>(`${this.env.AURORA_API_URL}/api/tokens/${this.key()}`);
+    const body = await this.call<{ tokens: AuroraToken[] } | AuroraToken[]>(`${this.env.AURORA_API_URL}/api/tokens/${this.key()}`);
+    const list = Array.isArray(body) ? body : body.tokens;
     this.tokens = { at: Date.now(), list };
     return list;
   }
 
   async asset(chain: string, symbol: string): Promise<AuroraToken> {
-    const match = (await this.listTokens()).filter((t) => t.blockchain === chain && t.symbol === symbol);
+    const want = SYMBOL_ALIAS[`${chain}:${symbol}`] ?? symbol;
+    const match = (await this.listTokens()).filter((t) => t.blockchain === chain && t.symbol === want);
     if (match.length !== 1) throw new BadGatewayException({ code: 'aurora_asset_unresolved', chain, symbol, matches: match.length });
     return match[0]!;
   }
@@ -177,9 +215,13 @@ export class AuroraClient {
     }).then((r) => r.result);
   }
 
-  /** Swap API quote (EXACT_INPUT from Solana USDC). `dry: false` reserves a deposit address. */
+  /**
+   * Swap API quote. `dry: true` only prices the route; `dry: false` reserves a deposit address.
+   * Both addresses are on real chains (DESTINATION_CHAIN / ORIGIN_CHAIN).
+   */
   quote(body: {
     dry: boolean;
+    swapType: 'EXACT_INPUT' | 'EXACT_OUTPUT';
     originAsset: string;
     destinationAsset: string;
     amount: string;
@@ -191,7 +233,6 @@ export class AuroraClient {
       method: 'POST',
       body: JSON.stringify({
         ...body,
-        swapType: 'EXACT_INPUT',
         slippageTolerance: 100,
         depositType: 'ORIGIN_CHAIN',
         refundType: 'ORIGIN_CHAIN',
@@ -211,9 +252,7 @@ export class AuroraClient {
 
   swapStatus(depositAddress: string, memo?: string) {
     const q = new URLSearchParams({ depositAddress, ...(memo ? { depositMemo: memo } : {}) });
-    return this.call<{ status: SwapStatus; swapDetails?: { destinationChainTxHashes?: { hash: string; explorerUrl: string }[] } }>(
-      `${this.env.AURORA_API_URL}/api/status/${this.key()}?${q}`,
-    );
+    return this.call<SwapStatusResponse>(`${this.env.AURORA_API_URL}/api/status/${this.key()}?${q}`);
   }
 
   getExecution(wallet: string, id: string) {

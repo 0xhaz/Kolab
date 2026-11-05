@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { usePrivy } from '@privy-io/react-auth';
-import type { ApplicationDto, CampaignDto, FUNDING_SOURCES, FundingDto, SlotDto } from '@kolab/shared';
+import type { ApplicationDto, AuroraMode, CampaignDto, FUNDING_SOURCES, FundingDto, SlotDto } from '@kolab/shared';
 import { api } from './api';
 
 export const keys = {
@@ -99,9 +99,12 @@ export const useApplications = (campaignId: string) =>
   });
 
 export interface FundingConfig {
-  mode: 'simulated' | 'aurora';
+  mode: AuroraMode;
   appFeeBps: number;
   simulateDeposits: boolean;
+  /** Hybrid only: largest single flow (real money moves through Kolab's mainnet relay). */
+  maxUsdc?: number;
+  relay?: { address: string; usdc: number | null; sol: number | null };
   sources: typeof FUNDING_SOURCES;
 }
 
