@@ -1,25 +1,26 @@
 # Kolab
 
-**Brands hire Southeast Asian micro-creators and pay them in USDC through an on-chain escrow on Solana.**
+Kolab lets Southeast Asian online sellers hire micro-creators and pay them in USDC through an escrow program on Solana.
 
-The brand locks the budget in a program-owned escrow before any work starts. Creators deliver, an automated verifier checks the post, and the escrow pays out by itself, even if the brand never logs back in. Creators sign in with an email, get a wallet without a seed phrase, never pay a network fee, and can cash out to the chain they actually use.
+The brand locks the budget in the escrow before any work starts. When a creator delivers, an automated verifier checks the post, and the escrow pays out even if the brand never logs back in. Creators sign in with an email and get a wallet with no seed phrase. Kolab pays their network fees, and they can cash out to another chain.
 
 | | |
 |---|---|
-| **Live demo** | https://kolab-web-eight.vercel.app (devnet, demo mode on) |
-| **API** | https://api-production-0d06f.up.railway.app/health |
-| **Demo video** | _[link to the walkthrough]_ |
-| **Program (devnet)** | [`7hTBC9iCNxZ3pmfk1EHstbB4hmxu2iRrNMZ4UhhChQfv`](https://explorer.solana.com/address/7hTBC9iCNxZ3pmfk1EHstbB4hmxu2iRrNMZ4UhhChQfv?cluster=devnet) |
-| **Tracks** | Best Consumer App on Solana · Aurora Intents |
+| Live demo | https://kolab-web-eight.vercel.app (devnet, demo mode on) |
+| API | https://api-production-0d06f.up.railway.app/health |
+| Demo video | _[link to the walkthrough]_ |
+| Program (devnet) | [`7hTBC9iCNxZ3pmfk1EHstbB4hmxu2iRrNMZ4UhhChQfv`](https://explorer.solana.com/address/7hTBC9iCNxZ3pmfk1EHstbB4hmxu2iRrNMZ4UhhChQfv?cluster=devnet) |
+| Tracks | Best Consumer App on Solana · Aurora Intents |
 
 ## The problem
 
-Micro-creators in Malaysia, Indonesia and the Philippines (5k–100k followers) do most of the region's sponsored posts, and they get paid last: 30–90 day invoices, brands that go quiet after the post is live, and bank fees that eat small payouts. Brands, in turn, pay up front and hope the post goes up, stays up and carries the `#ad` disclosure.
+Kolab's creators have 1k to 20k followers and work in Malaysia, Indonesia, the Philippines and Thailand. They film first and hope the brand pays. Brands pay up front and hope the post goes up, stays up and carries the `#ad` disclosure.
 
-Kolab replaces trust with an escrow:
+With Kolab, the budget is locked before work starts:
 
-- **Creators** see that the money exists before they film anything, and get paid within minutes of approval, or automatically after 72 hours if the brand doesn't respond.
-- **Brands** only release money for a post that passed the checks, and get the held-back 30% back if the creator deletes it within 7 days.
+- Creators can see the money exists before they film anything. They're paid within minutes of approval, or automatically after 72 hours if the brand doesn't respond.
+- Brands only release money for a post that passed the checks. If the creator deletes the post within 7 days, the held-back 30% returns to the brand.
+- Kolab charges brands 5% on released money and charges creators nothing.
 
 ## How it works
 
@@ -49,7 +50,7 @@ sequenceDiagram
     Creator->>API: cash out to any chain (Aurora Intents)
 ```
 
-Every slot follows the same state machine on-chain. Nobody, including Kolab, can move escrowed USDC outside these transitions.
+Each deliverable is a slot with its own on-chain state. Escrowed USDC moves only through these transitions, and Kolab can't move it any other way.
 
 ```mermaid
 stateDiagram-v2
@@ -72,12 +73,12 @@ stateDiagram-v2
 
 | Type | How the creator gets paid |
 |---|---|
-| **Per post** | A fixed USDC rate per approved deliverable |
-| **Monthly package** | A bundle of posts with one budget, released slot by slot |
-| **Per sale** | The creator gets a voucher code. The store's signed webhook triggers `record_sale`, and the creator claims per confirmed sale |
-| **UGC** | Content files for the brand's own channels, no holdback |
+| Per post | A fixed USDC rate per approved deliverable |
+| Monthly package | A bundle of posts with one budget, released slot by slot |
+| Per sale | The creator gets a voucher code. The store's signed webhook triggers `record_sale`, and the creator claims per confirmed sale |
+| UGC | Content files for the brand's own channels, no holdback |
 
-Any type can **require shipping**: the brand ships the product first (`mark_shipped`), the creator confirms receipt (`confirm_received`), then delivers.
+Any type can require shipping: the brand ships the product first (`mark_shipped`), the creator confirms receipt (`confirm_received`), then delivers.
 
 ## Architecture
 
@@ -121,15 +122,13 @@ flowchart LR
     Funding <--> Aurora
 ```
 
-### Where Solana matters
+### How Kolab uses Solana
 
-- **The escrow is the product.** Budgets sit in a program-owned USDC account per campaign. Release rules (approval, the 72-hour auto-release, the 70/30 holdback, the still-live check, per-sale claims) are enforced by the program, not by Kolab's database.
-- **Gasless for users.** Kolab's fee payer co-signs every transaction, so brands and creators never hold SOL.
-- **Wallets without crypto UX.** Privy creates an embedded Solana wallet at email sign-up. Users sign with a tap.
-- **Fast, cheap settlement.** A 10 USDC payout costs a fraction of a cent and lands in seconds, which makes per-post and per-sale payouts to small creators viable.
-- **The database is a mirror.** The indexer rebuilds campaign, enrollment and slot state from program events, so the chain is the source of truth.
+Each campaign's budget sits in a USDC account owned by the program. The program enforces the release rules: brand approval, the 72-hour auto-release, the 70/30 holdback, the still-live check and per-sale claims. Kolab's database only mirrors program events through the indexer, so the chain is the source of truth.
 
-### Aurora Intents: any-chain in, any-chain out
+Users never hold SOL, because Kolab's fee payer co-signs every transaction. Privy creates an embedded Solana wallet at email sign-up, so signing is a tap. A 10 USDC payout costs a fraction of a cent and lands in seconds, which makes small per-post and per-sale payouts practical.
+
+### Funding and cash-out on other chains (Aurora Intents)
 
 Brands can fund a campaign from USDC on other chains, and creators can cash out to the chain or token they use.
 
@@ -141,15 +140,19 @@ flowchart LR
     R2 -->|"real Aurora swap, mainnet"| C["Creator receives on Base, etc."]
 ```
 
-To be upfront: the escrow runs on **devnet** for this PoC, and the Aurora leg is **live on mainnet** with real quotes, deposit addresses, settlement and refunds. A small relay wallet bridges the two, capped at 10 USDC per flow and per user per day. In production the relay goes away: Intents Connect deposits straight into the mainnet program and calls `top_up_campaign`, which is already wired as `AURORA_MODE=aurora`. A fully simulated mode (`AURORA_MODE=simulated`) is available for free local runs.
+For this PoC the escrow runs on devnet, while the Aurora leg runs on mainnet with real quotes, deposit addresses, settlement and refunds. A relay wallet connects the two and is capped at 10 USDC per flow and per user per day. In production there's no relay: Intents Connect deposits into the mainnet program and calls `top_up_campaign`, which is wired up as `AURORA_MODE=aurora`. Local runs can use `AURORA_MODE=simulated`, which costs nothing.
 
-## What's in the box
+## Features
 
-- **Brand dashboard (web):** create, fund and publish campaigns; review applicants by niche, audience and track record; approve on-chain; review submissions with their check results; ship products; fund from any chain.
-- **Creator app (iOS) and web:** email sign-up, profile with channels and samples, Discover, apply, join, brand kit and brief, AI hook ideas (Gemini, with template fallback), a native video editor (trim, captions, music, end card), deliver, earnings, withdraw and cash out to any chain.
-- **Automated verifier:** checks the post exists, the author matches the linked handle, the timing fits the campaign, and the `#ad` disclosure is present.
-- **Demo mode:** a demo-clock build of the program lets the Demo panel skip the 72-hour and 7-day windows, fire mock sales and mark parcels delivered.
-- **Account deletion** that refuses while money or work is outstanding (App Store 5.1.1(v)).
+Brands use the web dashboard to create, fund and publish campaigns, fund them from other chains, and ship products. They review applicants by niche, audience and track record, approve them on-chain, and review each submission with its check results.
+
+Creators use the iOS app or the web. They sign up with an email, add channels and sample posts, find campaigns in Discover, apply and join. Each campaign has a brand kit and brief, AI hook ideas (Gemini, with a template fallback) and a native video editor for trimming, captions, music and an end card. Creators deliver, track earnings, withdraw, and cash out to other chains.
+
+The verifier checks that the post exists, that its author matches the linked handle, that the timing fits the campaign, and that it carries the `#ad` disclosure.
+
+In demo mode, the program's demo clock lets the Demo panel skip the 72-hour and 7-day windows, fire mock sales and mark parcels delivered.
+
+Users can delete their account in the app, which App Store guideline 5.1.1(v) requires. Deletion is refused while money or work is still outstanding.
 
 ## Repo layout
 
