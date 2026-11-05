@@ -91,13 +91,22 @@ export default function NewCampaignPage() {
   const [payWith, setPayWith] = useState<'wallet' | 'any' | null>(null);
   const [creating, setCreating] = useState<'idle' | 'saving' | 'signing'>('idle');
 
-  async function draftBrief() {
+  /** `keepSetup`: rewrite only the title and brief for the type, deliverables and spots set in card 2. */
+  async function draftBrief(keepSetup = false) {
+    const setup =
+      keepSetup && draft
+        ? { campaignType: draft.campaignType, slots: draft.slots, perSaleUsdc: draft.perSaleUsdc, maxCreators: Math.min(50, Math.max(1, maxCreators)) }
+        : undefined;
     setDrafting(true);
     try {
       const d = await api<Draft>('/ai/brief', {
         method: 'POST',
-        body: JSON.stringify({ productText, productUrl: productUrl || undefined, budgetUsdc: budget, markets, goal }),
+        body: JSON.stringify({ productText, productUrl: productUrl || undefined, budgetUsdc: budget, markets, goal, setup }),
       });
+      if (setup) {
+        setDraft((cur) => (cur ? { ...cur, title: d.title, briefMd: d.briefMd, rationale: d.rationale, source: d.source } : d));
+        return;
+      }
       setDraft(d);
       const covered = d.campaignType === 'per_sale' ? null : creatorsCovered(budget, d.slots);
       setMaxCreators(Math.max(1, covered === null ? d.suggestedCreators : Math.min(d.suggestedCreators, covered)));
@@ -235,7 +244,7 @@ export default function NewCampaignPage() {
           </select>
         </Field>
         <div className="md:col-span-2">
-          <Button variant="gradient" size="lg" className="h-10 px-5" disabled={drafting || productText.length < 3} onClick={draftBrief}>
+          <Button variant="gradient" size="lg" className="h-10 px-5" disabled={drafting || productText.length < 3} onClick={() => draftBrief()}>
             <SparklesIcon /> {drafting ? 'Drafting…' : draft ? 'Redraft' : 'Draft with AI'}
           </Button>
         </div>
@@ -323,6 +332,13 @@ export default function NewCampaignPage() {
                 <option value="yes">Yes, I ship to the creator</option>
               </select>
             </Field>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/8 px-3.5 py-3">
+            <Button variant="outline" size="sm" disabled={drafting || productText.length < 3} onClick={() => draftBrief(true)}>
+              <SparklesIcon /> {drafting ? 'Rewriting…' : 'Redraft from these settings'}
+            </Button>
+            <span className="text-xs text-muted-foreground">Changed the type, deliverables or spots? This rewrites the title and brief to match and keeps your settings.</span>
           </div>
 
           <Field label="Who can join">

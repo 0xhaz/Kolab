@@ -11,6 +11,15 @@ const BriefRequestSchema = z.object({
   budgetUsdc: z.number().positive().max(1_000_000),
   markets: z.array(z.enum(['MY', 'ID', 'PH', 'TH'])).default(['MY']),
   goal: z.enum(['awareness', 'sales', 'ugc']).optional(),
+  /** Redraft for a structure the brand set by hand: only the title and brief are rewritten. */
+  setup: z
+    .object({
+      campaignType: z.enum(['per_post', 'monthly', 'per_sale', 'ugc']),
+      slots: z.array(z.object({ kind: z.enum(['post', 'ugc']), amountUsdc: z.number().positive(), dueDays: z.number().positive() })).max(8),
+      perSaleUsdc: z.number().nonnegative(),
+      maxCreators: z.number().int().min(1).max(50),
+    })
+    .optional(),
 });
 
 @Controller('ai')
