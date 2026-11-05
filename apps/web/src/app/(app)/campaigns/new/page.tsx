@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { GlobeIcon, SparklesIcon, WalletIcon, PlusIcon, Trash2Icon } from 'lucide-react';
-import type { CampaignDto, CreateCampaign } from '@kolab/shared';
+import { budgetForCreators, creatorsCovered, perCreatorCommitment, type CampaignDto, type CreateCampaign } from '@kolab/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,6 +37,7 @@ interface Draft {
 }
 
 const FEE = 0.05;
+
 const REVIEW_OPTIONS = [
   { label: '72 hours (standard)', secs: 72 * 3600 },
   { label: '24 hours', secs: 24 * 3600 },
@@ -98,7 +99,8 @@ export default function NewCampaignPage() {
         body: JSON.stringify({ productText, productUrl: productUrl || undefined, budgetUsdc: budget, markets, goal }),
       });
       setDraft(d);
-      setMaxCreators(Math.max(1, d.suggestedCreators));
+      const covered = d.campaignType === 'per_sale' ? null : creatorsCovered(budget, d.slots);
+      setMaxCreators(Math.max(1, covered === null ? d.suggestedCreators : Math.min(d.suggestedCreators, covered)));
     } catch (e) {
       toast.error(errorMessage(e));
     } finally {
@@ -107,8 +109,11 @@ export default function NewCampaignPage() {
   }
 
   const perCreator = draft ? draft.slots.reduce((s, x) => s + x.amountUsdc, 0) : 0;
-  const perCreatorWithFee = perCreator * (1 + FEE);
-  const fundable = perCreatorWithFee > 0 ? Math.floor(budget / perCreatorWithFee) : null;
+  const perCreatorWithFee = draft ? Number(perCreatorCommitment(draft.slots)) / 1e6 : 0;
+  const fundable = draft ? creatorsCovered(budget, draft.slots) : null;
+  /** More spots than the budget can reserve: the extra creators would be refused when they join. */
+  const spotsShort = !!draft && draft.campaignType !== 'per_sale' && fundable !== null && maxCreators > fundable;
+  const budgetForSpots = draft ? budgetForCreators(draft.slots, maxCreators) : 0;
   const walletUsdc = balance ? Number(balance.usdc) / 1e6 : null;
   const walletShort = walletUsdc !== null && walletUsdc < budget;
   const funding = payWith ?? (walletShort ? 'any' : 'wallet');
@@ -351,6 +356,23 @@ export default function NewCampaignPage() {
                 <strong>{fundable ?? 0}</strong> creator{fundable === 1 ? '' : 's'}. Missed or removed work is refunded with no fee.
               </p>
             )}
+            {spotsShort && (
+              <div className="mt-3 rounded-xl border border-destructive/40 bg-destructive/10 p-3">
+                <p>
+                  You set {maxCreators} spots, but the budget covers {fundable}. Creators who join after the money runs out would be turned away.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setBudget(budgetForSpots)}>
+                    Raise budget to {usdc(budgetForSpots)}
+                  </Button>
+                  {fundable! > 0 && (
+                    <Button variant="outline" size="sm" onClick={() => setMaxCreators(fundable!)}>
+                      Lower spots to {fundable}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
             {funding === 'wallet' && walletShort && (
               <p className="mt-2 text-muted-foreground">
                 Your wallet holds {usdc(walletUsdc ?? 0)}. <Link className="underline" href="/wallet">Get test USDC</Link>, or pay from any chain.
@@ -360,11 +382,11 @@ export default function NewCampaignPage() {
 
           <div className="flex flex-wrap items-center gap-3">
             {funding === 'any' ? (
-              <Button variant="gradient" size="lg" className="h-11 px-6" disabled={creating !== 'idle'} onClick={() => createAndFund(true)}>
+              <Button variant="gradient" size="lg" className="h-11 px-6" disabled={creating !== 'idle' || spotsShort} onClick={() => createAndFund(true)}>
                 <GlobeIcon /> {creating === 'saving' ? 'Saving…' : creating === 'signing' ? 'Confirm in your wallet…' : `Create & fund ${usdc(budget)} from any chain`}
               </Button>
             ) : (
-              <Button variant="gradient" size="lg" className="h-11 px-6" disabled={creating !== 'idle' || walletShort} onClick={() => createAndFund(false)}>
+              <Button variant="gradient" size="lg" className="h-11 px-6" disabled={creating !== 'idle' || walletShort || spotsShort} onClick={() => createAndFund(false)}>
                 {creating === 'saving' ? 'Saving…' : creating === 'signing' ? 'Confirm in your wallet…' : `Create & lock ${usdc(budget)} from wallet`}
               </Button>
             )}

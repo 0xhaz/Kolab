@@ -12,7 +12,8 @@ export const demoCampaigns = (brandName = DEMO_BRAND_NAME): Record<'monthly' | '
     brandName,
     briefMd: BRIEF,
     type: 'monthly',
-    budgetUsdc: 120,
+    // 5 creators × (4 posts × 10 USDC + 5% fee) = 210, so every spot can be filled.
+    budgetUsdc: 210,
     slots: [1, 2, 3, 4].map((week) => ({ kind: 'post' as const, amountUsdc: 10, dueDays: week * 7 })),
     reviewWindowSecs: 72 * 3600,
     graceSecs: 48 * 3600,
@@ -26,7 +27,8 @@ export const demoCampaigns = (brandName = DEMO_BRAND_NAME): Record<'monthly' | '
     brandName,
     briefMd: `${BRIEF} We ship you the full-size serum first; your deadlines start when it arrives.`,
     type: 'monthly',
-    budgetUsdc: 120,
+    // 5 creators × (4 posts × 10 USDC + 5% fee) = 210, so every spot can be filled.
+    budgetUsdc: 210,
     slots: [1, 2, 3, 4].map((week) => ({ kind: 'post' as const, amountUsdc: 10, dueDays: week * 7 })),
     reviewWindowSecs: 72 * 3600,
     graceSecs: 48 * 3600,

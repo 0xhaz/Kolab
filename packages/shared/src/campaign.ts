@@ -1,9 +1,33 @@
 import { z } from 'zod';
+import { DEFAULT_FEE_BPS } from './constants.js';
 
 export const USDC_BASE = 1_000_000;
 /** Decimal USDC (max 2dp from forms) → base-unit string. */
 export const toBaseUnits = (usdc: number) => BigInt(Math.round(usdc * 100)) * 10_000n;
 export const fromBaseUnits = (base: bigint | string) => Number(BigInt(base)) / USDC_BASE;
+
+/**
+ * What one creator's schedule can cost the escrow, in USDC base units. Mirrors the program's
+ * `per_creator_commitment`: each slot amount plus its own floored fee. Enrolling reserves this much.
+ */
+export function perCreatorCommitment(slots: { amountUsdc: number }[], feeBps = DEFAULT_FEE_BPS): bigint {
+  return slots.reduce((sum, s) => {
+    const amount = toBaseUnits(s.amountUsdc);
+    return sum + amount + (amount * BigInt(feeBps)) / 10_000n;
+  }, 0n);
+}
+
+/** How many creators a budget can reserve, or null when a creator costs nothing up front (per sale). */
+export function creatorsCovered(budgetUsdc: number, slots: { amountUsdc: number }[], feeBps = DEFAULT_FEE_BPS): number | null {
+  const per = perCreatorCommitment(slots, feeBps);
+  return per > 0n ? Number(toBaseUnits(budgetUsdc) / per) : null;
+}
+
+/** The smallest budget, in USDC rounded up to the cent, that reserves `creators` creators. */
+export function budgetForCreators(slots: { amountUsdc: number }[], creators: number, feeBps = DEFAULT_FEE_BPS): number {
+  const total = perCreatorCommitment(slots, feeBps) * BigInt(creators);
+  return Number((total + 9_999n) / 10_000n) / 100;
+}
 
 export const CampaignTypeSchema = z.enum(['per_post', 'monthly', 'per_sale', 'ugc']);
 export type CampaignTypeName = z.infer<typeof CampaignTypeSchema>;

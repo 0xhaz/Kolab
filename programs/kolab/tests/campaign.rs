@@ -44,6 +44,24 @@ fn enroll_requires_funding_for_the_full_schedule() {
 }
 
 #[test]
+fn enroll_stops_at_max_creators_even_with_budget_left() {
+    let mut w = World::new();
+    let mut args = monthly(vec![post(100, 7)]);
+    args.max_creators = 2;
+    let c = w.create_campaign(args).unwrap();
+    // enough for 5 creators at 105 each, but only 2 spots
+    w.fund(c, 525 * USDC).unwrap();
+    let open = w.approve_creator(c, anchor_lang::prelude::Pubkey::default()).unwrap();
+    for _ in 0..2 {
+        w.enroll_with(c, &Keypair::new(), open, [0; 32]).unwrap();
+    }
+    assert_kolab_err(w.enroll_with(c, &Keypair::new(), open, [0; 32]).map(|_| ()), KolabError::CampaignFull);
+    let camp = w.account::<Campaign>(&c);
+    assert_eq!(camp.enrolled_count, 2);
+    assert_eq!(camp.total_committed, 210 * USDC);
+}
+
+#[test]
 fn shipping_due_dates_start_when_product_is_received() {
     let mut w = World::new();
     let mut args = monthly(vec![post(100, 7)]);
