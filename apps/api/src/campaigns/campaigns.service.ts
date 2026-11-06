@@ -132,7 +132,15 @@ export class CampaignsService {
     const where: Prisma.CampaignWhereInput =
       user.role === 'brand'
         ? { programId, brandId: user.id }
-        : { programId, OR: [{ status: 'active' }, { enrollments: { some: { creatorId: user.id } } }] };
+        : {
+            programId,
+            OR: [
+              // Campaigns the indexer found on-chain from another client have no brand account here,
+              // so nobody could approve or review them: keep them out of Discover.
+              { status: 'active', NOT: { brand: { privyId: { startsWith: 'wallet:' } } } },
+              { enrollments: { some: { creatorId: user.id } } },
+            ],
+          };
     return this.prisma.campaign.findMany({
       where,
       orderBy: { createdAt: 'desc' },
